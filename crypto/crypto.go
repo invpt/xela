@@ -15,6 +15,11 @@ import (
 // one byte for length followed by 239 bytes of actual plaintext data. Hence xela takes 7.11% more
 // storage space than storing your files in plaintext.
 
+type XelaDecrypter struct {
+	b   cipher.Block
+	cbc cipher.BlockMode
+}
+
 func NewXelaDecrypter(key []byte) (*XelaDecrypter, error) {
 	if len(key) != 32 {
 		return nil, errors.New("xela/crypto: incorrect size for decryption key")
@@ -26,15 +31,6 @@ func NewXelaDecrypter(key []byte) (*XelaDecrypter, error) {
 	}
 
 	return &XelaDecrypter{b: b}, nil
-}
-
-type XelaDecrypter struct {
-	b   cipher.Block
-	cbc cipher.BlockMode
-}
-
-type settableIV interface {
-	SetIV(iv []byte) error
 }
 
 // Decrypts one superblock and returns the length (number of bytes stored into plaintext).
@@ -71,6 +67,19 @@ func (x *XelaDecrypter) DecryptSuperblock(plaintext, ciphertext []byte) (int, er
 type XelaEncrypter struct {
 	b   cipher.Block
 	cbc cipher.BlockMode
+}
+
+func NewXelaEncrypter(key []byte) (*XelaEncrypter, error) {
+	if len(key) != 32 {
+		return nil, errors.New("xela/crypto: incorrect size for decryption key")
+	}
+
+	b, err := aes.NewCipher(key)
+	if err != nil {
+		return nil, err
+	}
+
+	return &XelaEncrypter{b: b}, nil
 }
 
 // Encrypts the given plaintext. The passed ciphertext parameter may contain the current ciphertext
@@ -125,4 +134,8 @@ func (x *XelaEncrypter) EncryptSuperblock(ciphertext, plaintext []byte) error {
 	x.cbc.CryptBlocks(ciphertext[16:], plaintextWithLength[:])
 
 	return nil
+}
+
+type settableIV interface {
+	SetIV(iv []byte) error
 }
