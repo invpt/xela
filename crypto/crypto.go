@@ -33,6 +33,36 @@ func NewXelaDecrypter(key []byte) (*XelaDecrypter, error) {
 	return &XelaDecrypter{b: b}, nil
 }
 
+// Decrypts the given cyphertext and places it into the plaintext pointer.
+//
+// May reuse/write to any current byte array pointed to by plaintext.
+func (x *XelaDecrypter) Decrypt(plaintext *[]byte, ciphertext []byte) error {
+	if len(ciphertext)%256 != 0 {
+		return errors.New("xela/crypto: malformed ciphertext - length must be multiple of 256")
+	}
+
+	blockCount := len(ciphertext) / 256
+
+	*plaintext = (*plaintext)[:0]
+	for blockIndex := 0; blockIndex < blockCount; blockIndex++ {
+		if cap(*plaintext)-len(*plaintext) < 239 {
+			newPlaintext := make([]byte, len(*plaintext)+239, max(len(*plaintext)*2, len(*plaintext)+239))
+			copy(newPlaintext[:len(*plaintext)], (*plaintext)[:])
+			*plaintext = newPlaintext
+		}
+		superblockLength, err := x.DecryptSuperblock(
+			(*plaintext)[len(*plaintext):len(*plaintext)+239],
+			ciphertext[blockIndex*256:(blockIndex+1)*256],
+		)
+		if err != nil {
+			return err
+		}
+		(*plaintext) = (*plaintext)[:len(*plaintext)+superblockLength]
+	}
+
+	return nil
+}
+
 // Decrypts one superblock and returns the length (number of bytes stored into plaintext).
 //
 // All superblocks are decrypted independently.
