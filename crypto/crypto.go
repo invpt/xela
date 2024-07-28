@@ -11,10 +11,10 @@ import (
 )
 
 // Length of the salt appended to every password
-const saltLength int = 32
+const saltLen int = 32
 
 // Length of the encryption key
-const keyLength uint32 = 32
+const keyLen uint32 = 32
 
 // Length of the ciphertext of a superblock
 const cphtxtLen int = 256
@@ -31,7 +31,7 @@ type Key struct{ key []byte }
 type Salt struct{ salt []byte }
 
 func GenerateSalt() (Salt, error) {
-	salt := make([]byte, saltLength)
+	salt := make([]byte, saltLen)
 	_, err := rand.Read(salt)
 	if err != nil {
 		return Salt{}, err
@@ -40,21 +40,21 @@ func GenerateSalt() (Salt, error) {
 	return Salt{salt: salt}, nil
 }
 
-type KdfParameters struct {
+type KDFParameters struct {
 	time    uint32
 	memory  uint32
 	threads uint8
 }
 
-func DefaultKdfParameters() KdfParameters {
-	return KdfParameters{
+func DefaultKDFParameters() KDFParameters {
+	return KDFParameters{
 		memory:  64 * 1024,
 		threads: 4,
 	}
 }
 
-func DeriveKey(params KdfParameters, password []byte, salt Salt) Key {
-	return Key{key: argon2.IDKey(password, salt.salt, params.time, params.memory, params.threads, keyLength)}
+func DeriveKey(password []byte, salt Salt, params KDFParameters) Key {
+	return Key{key: argon2.IDKey(password, salt.salt, params.time, params.memory, params.threads, keyLen)}
 }
 
 // Each file is divided into superblocks that end up being 256 bytes large in the encrypted,
