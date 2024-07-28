@@ -96,7 +96,7 @@ func (x *XelaEncrypter) Encrypt(ciphertext *[]byte, plaintext []byte) error {
 	for blockIndex := 0; blockIndex < blocksNeeded; blockIndex++ {
 		err := x.EncryptSuperblock(
 			(*ciphertext)[blockIndex*256:(blockIndex+1)*256],
-			plaintext[blockIndex*239:(blockIndex+1)*239],
+			plaintext[blockIndex*239:min((blockIndex+1)*239, len(plaintext))],
 		)
 		if err != nil {
 			return err
