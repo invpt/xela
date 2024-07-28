@@ -48,6 +48,7 @@ type KDFParameters struct {
 
 func DefaultKDFParameters() KDFParameters {
 	return KDFParameters{
+		time:    1,
 		memory:  64 * 1024,
 		threads: 4,
 	}
