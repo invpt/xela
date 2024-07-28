@@ -87,7 +87,10 @@ func NewXelaEncrypter(key []byte) (*XelaEncrypter, error) {
 // slice may also be written to.
 func (x *XelaEncrypter) Encrypt(ciphertext *[]byte, plaintext []byte) error {
 	// TODO: optimize the diff for simplicity
-	blocksNeeded := len(plaintext)/239 + len(plaintext)%239
+	blocksNeeded := len(plaintext) / 239
+	if len(plaintext)%239 != 0 {
+		blocksNeeded += 1
+	}
 	*ciphertext = make([]byte, 0, blocksNeeded*256)
 
 	for blockIndex := 0; blockIndex < blocksNeeded; blockIndex++ {
