@@ -37,12 +37,12 @@ type settableIV interface {
 	SetIV(iv []byte) error
 }
 
-// Decrypts one superblock.
+// Decrypts one superblock and returns the length (number of bytes stored into plaintext).
 //
 // All superblocks are decrypted independently.
-func (x *XelaDecrypter) DecryptSuperblock(plaintext, ciphertext []byte) (err error) {
+func (x *XelaDecrypter) DecryptSuperblock(plaintext, ciphertext []byte) (int, error) {
 	if len(ciphertext) != 256 || len(plaintext) != 239 {
-		return errors.New("xela/crypto: incorrect size for src or dst parameter")
+		return 0, errors.New("xela/crypto: incorrect size for src or dst parameter")
 	}
 
 	iv := ciphertext[:16]
@@ -51,18 +51,21 @@ func (x *XelaDecrypter) DecryptSuperblock(plaintext, ciphertext []byte) (err err
 	} else {
 		if s, ok := x.cbc.(settableIV); ok {
 			// set the IV using a more efficient method if available
-			err = s.SetIV(iv)
+			err := s.SetIV(iv)
 			if err != nil {
-				return err
+				return 0, err
 			}
 		} else {
 			x.cbc = cipher.NewCBCDecrypter(x.b, iv)
 		}
 	}
 
-	x.cbc.CryptBlocks(plaintext, ciphertext[16:])
+	plaintextWithLength := [240]byte{}
+	x.cbc.CryptBlocks(plaintextWithLength[:], ciphertext[16:])
+	length := int(plaintextWithLength[239])
+	copy(plaintext[:length], plaintextWithLength[:length])
 
-	return nil
+	return length, nil
 }
 
 type XelaEncrypter struct {
@@ -78,31 +81,48 @@ func (x *XelaEncrypter) Encrypt(ciphertext *[]byte, plaintext []byte) error {
 	blocksNeeded := len(plaintext)/239 + len(plaintext)%239
 	*ciphertext = make([]byte, 0, blocksNeeded*256)
 
-	c := *ciphertext
-	iv := make([]byte, 16)
 	for blockIndex := 0; blockIndex < blocksNeeded; blockIndex++ {
-		// make a new random initialization vector
-		_, err := rand.Read(iv)
+		err := x.EncryptSuperblock(
+			(*ciphertext)[blockIndex*256:(blockIndex+1)*256],
+			plaintext[blockIndex*239:(blockIndex+1)*239],
+		)
 		if err != nil {
 			return err
 		}
-
-		if x.cbc == nil {
-			x.cbc = cipher.NewCBCEncrypter(x.b, iv)
-		} else {
-			if s, ok := x.cbc.(settableIV); ok {
-				// set the IV using a more efficient method if available
-				err := s.SetIV(iv)
-				if err != nil {
-					return err
-				}
-			} else {
-				x.cbc = cipher.NewCBCEncrypter(x.b, iv)
-			}
-		}
-
-		x.cbc.CryptBlocks(c[blockIndex*256+16:blockIndex*256], plaintext[blockIndex*239:(blockIndex+1)*239])
 	}
+
+	return nil
+}
+
+func (x *XelaEncrypter) EncryptSuperblock(ciphertext, plaintext []byte) error {
+	if len(ciphertext) != 256 || len(plaintext) != 239 {
+		return errors.New("xela/crypto: incorrect size for src or dst parameter")
+	}
+
+	iv := ciphertext[:16]
+	_, err := rand.Read(iv)
+	if err != nil {
+		return err
+	}
+
+	if x.cbc == nil {
+		x.cbc = cipher.NewCBCEncrypter(x.b, iv)
+	} else {
+		if s, ok := x.cbc.(settableIV); ok {
+			// set the IV using a more efficient method if available
+			err := s.SetIV(iv)
+			if err != nil {
+				return err
+			}
+		} else {
+			x.cbc = cipher.NewCBCEncrypter(x.b, iv)
+		}
+	}
+
+	plaintextWithLength := [240]byte{}
+	copy(plaintextWithLength[:239], plaintext)
+	plaintextWithLength[239] = byte(len(plaintext))
+	x.cbc.CryptBlocks(ciphertext[16:], plaintextWithLength[:])
 
 	return nil
 }
