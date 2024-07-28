@@ -38,7 +38,7 @@ func NewXelaDecrypter(key []byte) (*XelaDecrypter, error) {
 // All superblocks are decrypted independently.
 func (x *XelaDecrypter) DecryptSuperblock(plaintext, ciphertext []byte) (int, error) {
 	if len(ciphertext) != 256 || len(plaintext) != 239 {
-		return 0, errors.New("xela/crypto: incorrect size for src or dst parameter")
+		return 0, errors.New("xela/crypto: incorrect size for plaintext or ciphertext parameter")
 	}
 
 	iv := ciphertext[:16]
@@ -107,8 +107,8 @@ func (x *XelaEncrypter) Encrypt(ciphertext *[]byte, plaintext []byte) error {
 }
 
 func (x *XelaEncrypter) EncryptSuperblock(ciphertext, plaintext []byte) error {
-	if len(ciphertext) != 256 || len(plaintext) != 239 {
-		return errors.New("xela/crypto: incorrect size for src or dst parameter")
+	if len(ciphertext) != 256 {
+		return errors.New("xela/crypto: incorrect size for ciphertext parameter")
 	}
 
 	iv := ciphertext[:16]
@@ -132,7 +132,7 @@ func (x *XelaEncrypter) EncryptSuperblock(ciphertext, plaintext []byte) error {
 	}
 
 	plaintextWithLength := [240]byte{}
-	copy(plaintextWithLength[:239], plaintext)
+	copy(plaintextWithLength[:len(plaintext)], plaintext)
 	plaintextWithLength[239] = byte(len(plaintext))
 	x.cbc.CryptBlocks(ciphertext[16:], plaintextWithLength[:])
 
