@@ -4,6 +4,8 @@ import (
 	"crypto/aes"
 	"crypto/cipher"
 	"crypto/rand"
+	"encoding/base64"
+	"encoding/json"
 	"errors"
 	"fmt"
 
@@ -30,6 +32,28 @@ const ptxtLen int = intrLen - 1
 type Key struct{ key []byte }
 type Salt struct{ salt []byte }
 
+func (s Salt) MarshalJSON() ([]byte, error) {
+	encoded := base64.StdEncoding.EncodeToString(s.salt)
+	return json.Marshal(encoded)
+}
+
+func (s *Salt) UnmarshalJSON(b []byte) error {
+	str := ""
+	err := json.Unmarshal(b, &str)
+	if err != nil {
+		return err
+	}
+
+	decoded, err := base64.StdEncoding.DecodeString(str)
+	if err != nil {
+		return err
+	}
+
+	s.salt = decoded
+
+	return nil
+}
+
 func GenerateSalt() (Salt, error) {
 	salt := make([]byte, saltLen)
 	_, err := rand.Read(salt)
@@ -46,12 +70,41 @@ type KDFParameters struct {
 	threads uint8
 }
 
+// This type is just so we can marshal/unmarshal while having the fields be unexported
+type jsonKDFParameters struct {
+	Time    uint32 `json:"time"`
+	Memory  uint32 `json:"memory"`
+	Threads uint8  `json:"threads"`
+}
+
 func DefaultKDFParameters() KDFParameters {
 	return KDFParameters{
 		time:    1,
 		memory:  64 * 1024,
 		threads: 4,
 	}
+}
+
+func (k KDFParameters) MarshalJSON() ([]byte, error) {
+	return json.Marshal(jsonKDFParameters{
+		Time:    k.time,
+		Memory:  k.memory,
+		Threads: k.threads,
+	})
+}
+
+func (k *KDFParameters) UnmarshalJSON(b []byte) error {
+	l := jsonKDFParameters{}
+	err := json.Unmarshal(b, &l)
+	if err != nil {
+		return err
+	}
+
+	k.time = l.Time
+	k.memory = l.Memory
+	k.threads = l.Threads
+
+	return nil
 }
 
 func DeriveKey(password []byte, salt Salt, params KDFParameters) Key {
