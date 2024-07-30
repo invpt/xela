@@ -1,10 +1,10 @@
 package vault
 
 import (
-	"errors"
-	"os"
+	"encoding/json"
 	"path"
 
+	"fixpt.org/xela/crypto"
 	"github.com/go-git/go-billy/v5/osfs"
 	"github.com/go-git/go-git/v5"
 	"github.com/go-git/go-git/v5/storage/filesystem/dotgit"
@@ -16,11 +16,18 @@ func hi() {
 }
 
 type VaultDatabase struct {
-	basePath string
+	repos *repoDatabase
+}
+
+type Vault struct {
+	repos *repoDatabase
+	repo  repoRef
+	dec   *crypto.XelaDecrypter
+	enc   *crypto.XelaEncrypter
 }
 
 type VaultRef struct {
-	name string
+	repoRef
 }
 
 func (v VaultRef) Name() string {
@@ -48,54 +55,56 @@ func (i ItemRef) Kind() ItemKind {
 }
 
 func Open(basePath string) *VaultDatabase {
-	return &VaultDatabase{basePath: basePath}
+	return &VaultDatabase{repos: openRepoDatabase(basePath)}
 }
 
 func (db *VaultDatabase) ListVaults() ([]VaultRef, error) {
-	entries, err := os.ReadDir(db.basePath)
+	repos, err := db.repos.ListRepos()
 	if err != nil {
 		return nil, err
 	}
 
-	repos := make([]VaultRef, 0, len(entries))
-	for _, entry := range entries {
-		if entry.Type().IsDir() {
-			repos = append(repos, VaultRef{name: entry.Name()})
-		}
+	vaults := make([]VaultRef, 0, len(repos))
+	for _, repo := range repos {
+		vaults = append(vaults, VaultRef{repoRef: repo})
 	}
 
-	return repos, nil
+	return vaults, nil
 }
 
-func (db *VaultDatabase) ListItems(vault VaultRef, dirs ...ItemRef) ([]ItemRef, error) {
-	if len(dirs) > 1 {
-		return nil, errors.New("xela/vault: cannot list items in multiple dirs")
-	}
-
-	dirPath := ""
-	if len(dirs) != 0 {
-		if dirs[0].kind != ItemKindDir {
-			return nil, errors.New("xela/vault: cannot list items in non-dir item")
-		}
-
-		dirPath = dirs[0].path
-	}
-
-	searchPath := path.Join(db.basePath, vault.name, dirPath)
-	entries, err := os.ReadDir(searchPath)
+func (db *VaultDatabase) OpenVault(vault VaultRef, password []byte) (*Vault, error) {
+	cryptJsonRef, err := db.repos.Ref(vault.repoRef, "crypt.json")
 	if err != nil {
 		return nil, err
 	}
 
-	items := make([]ItemRef, 0, len(entries))
-	for _, entry := range entries {
-		path := path.Join(dirPath, entry.Name())
-		if entry.Type().IsRegular() {
-			items = append(items, ItemRef{path: path, kind: ItemKindFile})
-		} else if entry.Type().IsDir() {
-			items = append(items, ItemRef{path: path, kind: ItemKindDir})
-		}
+	cryptJsonBytes, err := db.repos.Read(vault.repoRef, cryptJsonRef)
+	if err != nil {
+		return nil, err
 	}
 
-	return items, nil
+	var crypt struct {
+		Salt          crypto.Salt          `json:"salt"`
+		KDFParameters crypto.KDFParameters `json:"kdf_parameters"`
+	}
+	json.Unmarshal(cryptJsonBytes, &crypt)
+
+	key := crypto.DeriveKey(password, crypt.Salt, crypt.KDFParameters)
+
+	enc, err := crypto.NewXelaEncrypter(key)
+	if err != nil {
+		return nil, err
+	}
+
+	dec, err := crypto.NewXelaDecrypter(key)
+	if err != nil {
+		return nil, err
+	}
+
+	return &Vault{
+		repos: db.repos,
+		repo:  vault.repoRef,
+		enc:   enc,
+		dec:   dec,
+	}, nil
 }
