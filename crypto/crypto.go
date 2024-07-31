@@ -131,7 +131,13 @@ func NewXelaDecrypter(key Key) (*XelaDecrypter, error) {
 	return &XelaDecrypter{b: b}, nil
 }
 
-func (x *XelaDecrypter) DecryptFilename(ciphertext []byte) (plaintext string, err error) {
+func (x *XelaDecrypter) DecryptFilename(ciphertextString string) (plaintext string, err error) {
+	var ciphertext []byte
+	ciphertext, err = base64.URLEncoding.DecodeString(ciphertextString)
+	if err != nil {
+		return
+	}
+
 	if len(ciphertext)%aes.BlockSize != 0 || len(ciphertext)/aes.BlockSize < 1 {
 		return "", errors.New(fmt.Sprint(
 			"xela/crypto: malformed filename ciphertext - the length must be a multiple of",
@@ -234,7 +240,7 @@ func NewXelaEncrypter(key Key) (*XelaEncrypter, error) {
 	return &XelaEncrypter{b: b}, nil
 }
 
-func (x *XelaEncrypter) EncryptFilename(plaintext string) (ciphertext []byte, err error) {
+func (x *XelaEncrypter) EncryptFilename(plaintext string) (ciphertextString string, err error) {
 	plaintextBytesLen := len(plaintext) / aes.BlockSize * aes.BlockSize
 	if len(plaintext)%aes.BlockSize != 0 {
 		plaintextBytesLen += aes.BlockSize
@@ -245,7 +251,7 @@ func (x *XelaEncrypter) EncryptFilename(plaintext string) (ciphertext []byte, er
 		plaintextBytes[i] = plaintext[i]
 	}
 
-	ciphertext = make([]byte, plaintextBytesLen+aes.BlockSize)
+	ciphertext := make([]byte, plaintextBytesLen+aes.BlockSize)
 
 	iv := ciphertext[:aes.BlockSize]
 	_, err = rand.Read(iv)
@@ -259,6 +265,8 @@ func (x *XelaEncrypter) EncryptFilename(plaintext string) (ciphertext []byte, er
 	}
 
 	x.cbc.CryptBlocks(ciphertext[aes.BlockSize:], plaintextBytes)
+
+	ciphertextString = base64.URLEncoding.EncodeToString(ciphertext)
 
 	return
 }
