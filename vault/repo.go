@@ -3,7 +3,7 @@ package vault
 import (
 	"errors"
 	"os"
-	"path"
+	"path/filepath"
 )
 
 type repoDatabase struct {
@@ -55,7 +55,7 @@ func (rd *repoDatabase) ListItems(repo repoRef, dirs ...repoItemRef) ([]repoItem
 		dirPath = dirs[0].path
 	}
 
-	searchPath := path.Join(rd.basePath, repo.name, dirPath)
+	searchPath := filepath.Join(rd.basePath, repo.name, dirPath)
 	entries, err := os.ReadDir(searchPath)
 	if err != nil {
 		return nil, err
@@ -63,7 +63,7 @@ func (rd *repoDatabase) ListItems(repo repoRef, dirs ...repoItemRef) ([]repoItem
 
 	items := make([]repoItemRef, 0, len(entries))
 	for _, entry := range entries {
-		path := path.Join(dirPath, entry.Name())
+		path := filepath.Join(dirPath, entry.Name())
 		if entry.Type().IsRegular() {
 			items = append(items, repoItemRef{path: path, kind: ItemKindFile})
 		} else if entry.Type().IsDir() {
@@ -76,7 +76,7 @@ func (rd *repoDatabase) ListItems(repo repoRef, dirs ...repoItemRef) ([]repoItem
 
 func (rd *repoDatabase) Ref(repo repoRef, name string) (repoItemRef, error) {
 	// TODO: sanitize to prevent path escape?
-	fsPath := path.Join(rd.basePath, repo.name, name)
+	fsPath := filepath.Join(rd.basePath, repo.name, name)
 
 	info, err := os.Stat(fsPath)
 	if err != nil {
@@ -99,7 +99,7 @@ func (rd *repoDatabase) Read(repo repoRef, file repoItemRef) ([]byte, error) {
 		return nil, errors.New("xela/vault: cannot read from non-file item")
 	}
 
-	fsPath := path.Join(rd.basePath, repo.name, file.path)
+	fsPath := filepath.Join(rd.basePath, repo.name, file.path)
 
 	return os.ReadFile(fsPath)
 }
@@ -109,7 +109,7 @@ func (rd *repoDatabase) Write(repo repoRef, file repoItemRef, data []byte) error
 		return errors.New("xela/vault: cannot write to non-file item")
 	}
 
-	fsPath := path.Join(rd.basePath, repo.name, file.path)
+	fsPath := filepath.Join(rd.basePath, repo.name, file.path)
 
 	return os.WriteFile(fsPath, data, 0)
 }
