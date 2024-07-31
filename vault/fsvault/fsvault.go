@@ -1,14 +1,14 @@
-package filesystem
+package fsvault
 
 import (
 	"errors"
 	"os"
 	"path/filepath"
 
-	"fixpt.org/xela/core"
+	"fixpt.org/xela/vault"
 )
 
-var _ core.Vault[ItemRef] = &Vault{}
+var _ vault.Vault[ItemRef] = &Vault{}
 
 type Vault struct {
 	basePath string
@@ -16,29 +16,29 @@ type Vault struct {
 
 type ItemRef struct {
 	path string
-	kind core.ItemKind
+	kind vault.ItemKind
 }
 
 func (r ItemRef) Name() string {
 	return filepath.Base(r.path)
 }
 
-func (r ItemRef) Kind() core.ItemKind {
+func (r ItemRef) Kind() vault.ItemKind {
 	return r.kind
 }
 
 var ErrNotExist error = os.ErrNotExist
 
-func OpenVault(basePath string) *Vault {
+func Open(basePath string) *Vault {
 	return &Vault{basePath: basePath}
 }
 
 func (v *Vault) Root() ItemRef {
-	return ItemRef{path: "", kind: core.ItemKindDir}
+	return ItemRef{path: "", kind: vault.ItemKindDir}
 }
 
 func (v *Vault) List(where ItemRef) ([]ItemRef, error) {
-	if where.kind != core.ItemKindDir {
+	if where.kind != vault.ItemKindDir {
 		return nil, errors.New("xela/vault: cannot list items in non-dir item")
 	}
 
@@ -52,9 +52,9 @@ func (v *Vault) List(where ItemRef) ([]ItemRef, error) {
 	for _, entry := range entries {
 		path := filepath.Join(where.path, entry.Name())
 		if entry.Type().IsRegular() {
-			items = append(items, ItemRef{path: path, kind: core.ItemKindFile})
+			items = append(items, ItemRef{path: path, kind: vault.ItemKindFile})
 		} else if entry.Type().IsDir() {
-			items = append(items, ItemRef{path: path, kind: core.ItemKindDir})
+			items = append(items, ItemRef{path: path, kind: vault.ItemKindDir})
 		}
 	}
 
@@ -62,7 +62,7 @@ func (v *Vault) List(where ItemRef) ([]ItemRef, error) {
 }
 
 func (v *Vault) Ref(where ItemRef, name string) (ItemRef, error) {
-	if where.kind != core.ItemKindDir {
+	if where.kind != vault.ItemKindDir {
 		return ItemRef{}, errors.New("xela/vault: cannot ref inside non-dir item")
 	}
 
@@ -74,9 +74,9 @@ func (v *Vault) Ref(where ItemRef, name string) (ItemRef, error) {
 		return ItemRef{}, err
 	}
 
-	kind := core.ItemKindFile
+	kind := vault.ItemKindFile
 	if info.IsDir() {
-		kind = core.ItemKindDir
+		kind = vault.ItemKindDir
 	}
 
 	return ItemRef{
@@ -85,15 +85,15 @@ func (v *Vault) Ref(where ItemRef, name string) (ItemRef, error) {
 	}, nil
 }
 
-func (v *Vault) Create(where ItemRef, name string, kind core.ItemKind) (ItemRef, error) {
-	if where.kind != core.ItemKindDir {
+func (v *Vault) Create(where ItemRef, name string, kind vault.ItemKind) (ItemRef, error) {
+	if where.kind != vault.ItemKindDir {
 		return ItemRef{}, errors.New("xela/vault: cannot create inside non-dir item")
 	}
 
 	// TODO: sanitize to prevent path escape?
 	fsPath := filepath.Join(v.basePath, where.path, name)
 
-	if kind == core.ItemKindDir {
+	if kind == vault.ItemKindDir {
 		err := os.Mkdir(fsPath, 0)
 		if err != nil {
 			return ItemRef{}, err
@@ -112,7 +112,7 @@ func (v *Vault) Create(where ItemRef, name string, kind core.ItemKind) (ItemRef,
 }
 
 func (v *Vault) Read(file ItemRef) ([]byte, error) {
-	if file.kind != core.ItemKindFile {
+	if file.kind != vault.ItemKindFile {
 		return nil, errors.New("xela/vault: cannot read from non-file item")
 	}
 
@@ -122,7 +122,7 @@ func (v *Vault) Read(file ItemRef) ([]byte, error) {
 }
 
 func (v *Vault) Write(file ItemRef, data []byte) error {
-	if file.kind != core.ItemKindFile {
+	if file.kind != vault.ItemKindFile {
 		return errors.New("xela/vault: cannot write to non-file item")
 	}
 

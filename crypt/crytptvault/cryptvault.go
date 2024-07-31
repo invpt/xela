@@ -1,26 +1,27 @@
-package crypto
+package cryptvault
 
 import (
 	"encoding/json"
 	"errors"
 
-	"fixpt.org/xela/core"
+	"fixpt.org/xela/crypt"
+	"fixpt.org/xela/vault"
 )
 
-var _ core.Vault[ItemRef[core.UnitItemRef]] = &Vault[core.UnitItemRef]{}
+var _ vault.Vault[ItemRef[vault.UnitItemRef]] = &Vault[vault.UnitItemRef]{}
 
-type Vault[InnerRef core.ItemRef] struct {
-	inner core.Vault[InnerRef]
-	enc   *XelaEncrypter
-	dec   *XelaDecrypter
+type Vault[InnerRef vault.ItemRef] struct {
+	inner vault.Vault[InnerRef]
+	enc   *crypt.Encrypter
+	dec   *crypt.Decrypter
 }
 
-type ItemRef[InnerRef core.ItemRef] struct {
+type ItemRef[InnerRef vault.ItemRef] struct {
 	inner InnerRef
 	name  string
 }
 
-func OpenVault[InnerRef core.ItemRef](inner core.Vault[InnerRef], password []byte) (*Vault[InnerRef], error) {
+func Open[InnerRef vault.ItemRef](inner vault.Vault[InnerRef], password []byte) (*Vault[InnerRef], error) {
 	cryptJsonRef, err := inner.Ref(inner.Root(), "crypt.json")
 	if err != nil {
 		return nil, err
@@ -31,20 +32,20 @@ func OpenVault[InnerRef core.ItemRef](inner core.Vault[InnerRef], password []byt
 		return nil, err
 	}
 
-	var crypt struct {
-		Salt          Salt          `json:"salt"`
-		KDFParameters KDFParameters `json:"kdf_parameters"`
+	var c struct {
+		Salt          crypt.Salt          `json:"salt"`
+		KDFParameters crypt.KDFParameters `json:"kdf_parameters"`
 	}
-	json.Unmarshal(cryptJsonBytes, &crypt)
+	json.Unmarshal(cryptJsonBytes, &c)
 
-	key := DeriveKey(password, crypt.Salt, crypt.KDFParameters)
+	key := crypt.DeriveKey(password, c.Salt, c.KDFParameters)
 
-	enc, err := NewXelaEncrypter(key)
+	enc, err := crypt.NewEncrypter(key)
 	if err != nil {
 		return nil, err
 	}
 
-	dec, err := NewXelaDecrypter(key)
+	dec, err := crypt.NewDecrypter(key)
 	if err != nil {
 		return nil, err
 	}
@@ -85,7 +86,7 @@ func (v *Vault[InnerRef]) Ref(where ItemRef[InnerRef], name string) (ItemRef[Inn
 	return ItemRef[InnerRef]{}, errors.New("xela/crypto: TODO: implement Ref")
 }
 
-func (v *Vault[InnerRef]) Create(where ItemRef[InnerRef], name string, kind core.ItemKind) (ItemRef[InnerRef], error) {
+func (v *Vault[InnerRef]) Create(where ItemRef[InnerRef], name string, kind vault.ItemKind) (ItemRef[InnerRef], error) {
 	encryptedName, err := v.enc.EncryptFilename(name)
 	if err != nil {
 		return ItemRef[InnerRef]{}, err

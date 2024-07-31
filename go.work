@@ -1,8 +1,7 @@
 go 1.22.5
 
 use (
-	./core
-	./crypto
+	./crypt
 	./desktop
-	./filesystem
+	./vault
 )

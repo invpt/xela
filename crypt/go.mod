@@ -1,4 +1,4 @@
-module fixpt.org/xela/crypto
+module fixpt.org/xela/crypt
 
 go 1.22.5
 

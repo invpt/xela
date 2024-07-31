@@ -1,4 +1,4 @@
-package core
+package vault
 
 type ItemKind int
 

@@ -1,4 +1,4 @@
-package crypto
+package crypt
 
 import (
 	"crypto/aes"
@@ -117,21 +117,21 @@ func DeriveKey(password []byte, salt Salt, params KDFParameters) Key {
 // one byte for length followed by 239 bytes of actual plaintext data. Hence xela takes 7.11% more
 // storage space than storing your files in plaintext.
 
-type XelaDecrypter struct {
+type Decrypter struct {
 	b   cipher.Block
 	cbc cipher.BlockMode
 }
 
-func NewXelaDecrypter(key Key) (*XelaDecrypter, error) {
+func NewDecrypter(key Key) (*Decrypter, error) {
 	b, err := aes.NewCipher(key.key)
 	if err != nil {
 		return nil, err
 	}
 
-	return &XelaDecrypter{b: b}, nil
+	return &Decrypter{b: b}, nil
 }
 
-func (x *XelaDecrypter) DecryptFilename(ciphertextString string) (plaintext string, err error) {
+func (x *Decrypter) DecryptFilename(ciphertextString string) (plaintext string, err error) {
 	var ciphertext []byte
 	ciphertext, err = base64.URLEncoding.DecodeString(ciphertextString)
 	if err != nil {
@@ -173,7 +173,7 @@ func (x *XelaDecrypter) DecryptFilename(ciphertextString string) (plaintext stri
 // Decrypts the given cyphertext and places it into the plaintext pointer.
 //
 // May reuse/write to the current byte array pointed to by plaintext.
-func (x *XelaDecrypter) DecryptFile(plaintext []byte, ciphertext []byte) ([]byte, error) {
+func (x *Decrypter) DecryptFile(plaintext []byte, ciphertext []byte) ([]byte, error) {
 	if len(ciphertext)%cphtxtLen != 0 {
 		return nil, errors.New(fmt.Sprint("xela/crypto: malformed ciphertext - the length must be a multiple of ", cphtxtLen))
 	}
@@ -206,7 +206,7 @@ func (x *XelaDecrypter) DecryptFile(plaintext []byte, ciphertext []byte) ([]byte
 // Decrypts one superblock and returns the length (number of bytes stored into plaintext).
 //
 // All superblocks are decrypted independently.
-func (x *XelaDecrypter) DecryptFileSuperblock(plaintext, ciphertext []byte) (length int, err error) {
+func (x *Decrypter) DecryptFileSuperblock(plaintext, ciphertext []byte) (length int, err error) {
 	if len(ciphertext) != cphtxtLen || len(plaintext) != ptxtLen {
 		return 0, errors.New("xela/crypto: incorrect size for plaintext or ciphertext parameter")
 	}
@@ -226,21 +226,21 @@ func (x *XelaDecrypter) DecryptFileSuperblock(plaintext, ciphertext []byte) (len
 	return
 }
 
-type XelaEncrypter struct {
+type Encrypter struct {
 	b   cipher.Block
 	cbc cipher.BlockMode
 }
 
-func NewXelaEncrypter(key Key) (*XelaEncrypter, error) {
+func NewEncrypter(key Key) (*Encrypter, error) {
 	b, err := aes.NewCipher(key.key)
 	if err != nil {
 		return nil, err
 	}
 
-	return &XelaEncrypter{b: b}, nil
+	return &Encrypter{b: b}, nil
 }
 
-func (x *XelaEncrypter) EncryptFilename(plaintext string) (ciphertextString string, err error) {
+func (x *Encrypter) EncryptFilename(plaintext string) (ciphertextString string, err error) {
 	plaintextBytesLen := len(plaintext) / aes.BlockSize * aes.BlockSize
 	if len(plaintext)%aes.BlockSize != 0 {
 		plaintextBytesLen += aes.BlockSize
@@ -274,7 +274,7 @@ func (x *XelaEncrypter) EncryptFilename(plaintext string) (ciphertextString stri
 // Encrypts the given plaintext. The passed ciphertext parameter may contain the current ciphertext
 // to be used by this function in an effort to create a minimal-diff result. The passed ciphertext
 // slice may also be written to.
-func (x *XelaEncrypter) EncryptFile(ciphertext []byte, plaintext []byte) ([]byte, error) {
+func (x *Encrypter) EncryptFile(ciphertext []byte, plaintext []byte) ([]byte, error) {
 	// TODO: optimize the diff for simplicity
 	blocksNeeded := len(plaintext) / ptxtLen
 	if len(plaintext)%ptxtLen != 0 {
@@ -295,7 +295,7 @@ func (x *XelaEncrypter) EncryptFile(ciphertext []byte, plaintext []byte) ([]byte
 	return ciphertext, nil
 }
 
-func (x *XelaEncrypter) EncryptFileSuperblock(ciphertext, plaintext []byte) (err error) {
+func (x *Encrypter) EncryptFileSuperblock(ciphertext, plaintext []byte) (err error) {
 	if len(ciphertext) != cphtxtLen {
 		return errors.New("xela/crypto: incorrect size for ciphertext parameter")
 	}
