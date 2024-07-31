@@ -10,13 +10,13 @@ type repoDatabase struct {
 	basePath string
 }
 
-type repoRef struct {
-	name string
-}
-
 type repoItemRef struct {
 	path string
 	kind ItemKind
+}
+
+func (r repoItemRef) Name() string {
+	return filepath.Base(r.path)
 }
 
 var repoErrNotExist error = os.ErrNotExist
@@ -25,37 +25,28 @@ func openRepoDatabase(basePath string) *repoDatabase {
 	return &repoDatabase{basePath: basePath}
 }
 
-func (rd *repoDatabase) ListRepos() ([]repoRef, error) {
+func (rd *repoDatabase) ListRepos() ([]repoItemRef, error) {
 	entries, err := os.ReadDir(rd.basePath)
 	if err != nil {
 		return nil, err
 	}
 
-	repos := make([]repoRef, 0, len(entries))
+	repos := make([]repoItemRef, 0, len(entries))
 	for _, entry := range entries {
 		if entry.Type().IsDir() {
-			repos = append(repos, repoRef{name: entry.Name()})
+			repos = append(repos, repoItemRef{path: entry.Name(), kind: ItemKindDir})
 		}
 	}
 
 	return repos, nil
 }
 
-func (rd *repoDatabase) ListItems(repo repoRef, dirs ...repoItemRef) ([]repoItemRef, error) {
-	if len(dirs) > 1 {
-		return nil, errors.New("xela/vault: cannot list items in multiple dirs")
+func (rd *repoDatabase) ListItems(where repoItemRef) ([]repoItemRef, error) {
+	if where.kind != ItemKindDir {
+		return nil, errors.New("xela/vault: cannot list items in non-dir item")
 	}
 
-	dirPath := ""
-	if len(dirs) != 0 {
-		if dirs[0].kind != ItemKindDir {
-			return nil, errors.New("xela/vault: cannot list items in non-dir item")
-		}
-
-		dirPath = dirs[0].path
-	}
-
-	searchPath := filepath.Join(rd.basePath, repo.name, dirPath)
+	searchPath := filepath.Join(rd.basePath, where.path)
 	entries, err := os.ReadDir(searchPath)
 	if err != nil {
 		return nil, err
@@ -63,7 +54,7 @@ func (rd *repoDatabase) ListItems(repo repoRef, dirs ...repoItemRef) ([]repoItem
 
 	items := make([]repoItemRef, 0, len(entries))
 	for _, entry := range entries {
-		path := filepath.Join(dirPath, entry.Name())
+		path := filepath.Join(where.path, entry.Name())
 		if entry.Type().IsRegular() {
 			items = append(items, repoItemRef{path: path, kind: ItemKindFile})
 		} else if entry.Type().IsDir() {
@@ -74,9 +65,13 @@ func (rd *repoDatabase) ListItems(repo repoRef, dirs ...repoItemRef) ([]repoItem
 	return items, nil
 }
 
-func (rd *repoDatabase) Ref(repo repoRef, name string) (repoItemRef, error) {
+func (rd *repoDatabase) Ref(where repoItemRef, name string) (repoItemRef, error) {
+	if where.kind != ItemKindDir {
+		return repoItemRef{}, errors.New("xela/vault: cannot ref inside non-dir item")
+	}
+
 	// TODO: sanitize to prevent path escape?
-	fsPath := filepath.Join(rd.basePath, repo.name, name)
+	fsPath := filepath.Join(rd.basePath, where.path, name)
 
 	info, err := os.Stat(fsPath)
 	if err != nil {
@@ -94,26 +89,52 @@ func (rd *repoDatabase) Ref(repo repoRef, name string) (repoItemRef, error) {
 	}, nil
 }
 
-func (rd *repoDatabase) Read(repo repoRef, file repoItemRef) ([]byte, error) {
+func (rd *repoDatabase) Create(where repoItemRef, name string, kind ItemKind) (repoItemRef, error) {
+	if where.kind != ItemKindDir {
+		return repoItemRef{}, errors.New("xela/vault: cannot create inside non-dir item")
+	}
+
+	// TODO: sanitize to prevent path escape?
+	fsPath := filepath.Join(rd.basePath, where.path, name)
+
+	if kind == ItemKindDir {
+		err := os.Mkdir(fsPath, 0)
+		if err != nil {
+			return repoItemRef{}, err
+		}
+	} else {
+		_, err := os.Create(fsPath)
+		if err != nil {
+			return repoItemRef{}, err
+		}
+	}
+
+	return repoItemRef{
+		path: filepath.Join(where.path, name),
+		kind: kind,
+	}, nil
+}
+
+func (rd *repoDatabase) Read(file repoItemRef) ([]byte, error) {
 	if file.kind != ItemKindFile {
 		return nil, errors.New("xela/vault: cannot read from non-file item")
 	}
 
-	fsPath := filepath.Join(rd.basePath, repo.name, file.path)
+	fsPath := filepath.Join(rd.basePath, file.path)
 
 	return os.ReadFile(fsPath)
 }
 
-func (rd *repoDatabase) Write(repo repoRef, file repoItemRef, data []byte) error {
+func (rd *repoDatabase) Write(file repoItemRef, data []byte) error {
 	if file.kind != ItemKindFile {
 		return errors.New("xela/vault: cannot write to non-file item")
 	}
 
-	fsPath := filepath.Join(rd.basePath, repo.name, file.path)
+	fsPath := filepath.Join(rd.basePath, file.path)
 
 	return os.WriteFile(fsPath, data, 0)
 }
 
-func (rd *repoDatabase) Delete(repo repoRef, item repoItemRef) error {
+func (rd *repoDatabase) Delete(item repoItemRef) error {
 	return os.RemoveAll(item.path)
 }

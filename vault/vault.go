@@ -22,17 +22,17 @@ type VaultDatabase struct {
 
 type Vault struct {
 	repos *repoDatabase
-	repo  repoRef
+	root  repoItemRef
 	dec   *crypto.XelaDecrypter
 	enc   *crypto.XelaEncrypter
 }
 
 type VaultRef struct {
-	repoRef
+	root repoItemRef
 }
 
 func (v VaultRef) Name() string {
-	return v.name
+	return v.root.Name()
 }
 
 type ItemRef struct {
@@ -67,19 +67,19 @@ func (db *VaultDatabase) ListVaults() ([]VaultRef, error) {
 
 	vaults := make([]VaultRef, 0, len(repos))
 	for _, repo := range repos {
-		vaults = append(vaults, VaultRef{repoRef: repo})
+		vaults = append(vaults, VaultRef{root: repo})
 	}
 
 	return vaults, nil
 }
 
 func (db *VaultDatabase) OpenVault(vault VaultRef, password []byte) (*Vault, error) {
-	cryptJsonRef, err := db.repos.Ref(vault.repoRef, "crypt.json")
+	cryptJsonRef, err := db.repos.Ref(vault.root, "crypt.json")
 	if err != nil {
 		return nil, err
 	}
 
-	cryptJsonBytes, err := db.repos.Read(vault.repoRef, cryptJsonRef)
+	cryptJsonBytes, err := db.repos.Read(cryptJsonRef)
 	if err != nil {
 		return nil, err
 	}
@@ -104,7 +104,7 @@ func (db *VaultDatabase) OpenVault(vault VaultRef, password []byte) (*Vault, err
 
 	return &Vault{
 		repos: db.repos,
-		repo:  vault.repoRef,
+		root:  vault.root,
 		enc:   enc,
 		dec:   dec,
 	}, nil
@@ -115,12 +115,12 @@ func (v *Vault) ListItems(dirs ...ItemRef) ([]ItemRef, error) {
 		return nil, errors.New("xela/vault: cannot list items in multiple dirs")
 	}
 
-	repoDirs := make([]repoItemRef, len(dirs))
-	for _, dir := range dirs {
-		repoDirs = append(repoDirs, dir.repoItemRef)
+	whereInRepo := v.root
+	if len(dirs) != 0 {
+		whereInRepo = dirs[0].repoItemRef
 	}
 
-	repoItems, err := v.repos.ListItems(v.repo, repoDirs...)
+	repoItems, err := v.repos.ListItems(whereInRepo)
 	if err != nil {
 		return nil, err
 	}
