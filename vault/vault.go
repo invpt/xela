@@ -2,7 +2,8 @@ package vault
 
 import (
 	"encoding/json"
-	"path"
+	"errors"
+	"path/filepath"
 
 	"fixpt.org/xela/crypto"
 	"github.com/go-git/go-billy/v5/osfs"
@@ -35,8 +36,8 @@ func (v VaultRef) Name() string {
 }
 
 type ItemRef struct {
-	path string
-	kind ItemKind
+	repoItemRef
+	name string
 }
 
 type ItemKind int
@@ -47,11 +48,11 @@ const (
 )
 
 func (i ItemRef) Name() string {
-	return path.Base(i.path)
+	return i.name
 }
 
 func (i ItemRef) Kind() ItemKind {
-	return i.kind
+	return i.repoItemRef.kind
 }
 
 func Open(basePath string) *VaultDatabase {
@@ -106,5 +107,46 @@ func (db *VaultDatabase) OpenVault(vault VaultRef, password []byte) (*Vault, err
 		repo:  vault.repoRef,
 		enc:   enc,
 		dec:   dec,
+	}, nil
+}
+
+func (v *Vault) ListItems(dirs ...ItemRef) ([]ItemRef, error) {
+	if len(dirs) > 1 {
+		return nil, errors.New("xela/vault: cannot list items in multiple dirs")
+	}
+
+	repoDirs := make([]repoItemRef, len(dirs))
+	for _, dir := range dirs {
+		repoDirs = append(repoDirs, dir.repoItemRef)
+	}
+
+	repoItems, err := v.repos.ListItems(v.repo, repoDirs...)
+	if err != nil {
+		return nil, err
+	}
+
+	items := make([]ItemRef, 0, len(repoItems))
+	for _, repoItem := range repoItems {
+		item, err := v.decryptRepoItemRef(repoItem)
+		if err != nil {
+			return nil, err
+		}
+		items = append(items, item)
+	}
+
+	return items, nil
+}
+
+func (v *Vault) decryptRepoItemRef(repoItem repoItemRef) (ItemRef, error) {
+	_, encryptedName := filepath.Split(repoItem.path)
+
+	decryptedName, err := v.dec.DecryptFilename(encryptedName)
+	if err != nil {
+		return ItemRef{}, err
+	}
+
+	return ItemRef{
+		repoItemRef: repoItem,
+		name:        decryptedName,
 	}, nil
 }
