@@ -149,7 +149,7 @@ func (x *XelaDecrypter) DecryptFilename(ciphertext []byte) (plaintext string, er
 	}
 
 	plaintextBytes := make([]byte, len(ciphertext)-aes.BlockSize)
-	x.cbc.CryptBlocks(plaintextBytes, ciphertext)
+	x.cbc.CryptBlocks(plaintextBytes, ciphertext[aes.BlockSize:])
 
 	nulIdx := len(plaintextBytes)
 	for i, ch := range plaintextBytes {
@@ -232,6 +232,35 @@ func NewXelaEncrypter(key Key) (*XelaEncrypter, error) {
 	}
 
 	return &XelaEncrypter{b: b}, nil
+}
+
+func (x *XelaEncrypter) EncryptFilename(plaintext string) (ciphertext []byte, err error) {
+	plaintextBytesLen := len(plaintext) / aes.BlockSize * aes.BlockSize
+	if len(plaintext)%aes.BlockSize != 0 {
+		plaintextBytesLen += aes.BlockSize
+	}
+
+	plaintextBytes := make([]byte, plaintextBytesLen)
+	for i := 0; i < len(plaintext); i++ {
+		plaintextBytes[i] = plaintext[i]
+	}
+
+	ciphertext = make([]byte, plaintextBytesLen+aes.BlockSize)
+
+	iv := ciphertext[:aes.BlockSize]
+	_, err = rand.Read(iv)
+	if err != nil {
+		return
+	}
+
+	x.cbc, err = setCBCIV(x.b, x.cbc, iv)
+	if err != nil {
+		return
+	}
+
+	x.cbc.CryptBlocks(ciphertext[aes.BlockSize:], plaintextBytes)
+
+	return
 }
 
 // Encrypts the given plaintext. The passed ciphertext parameter may contain the current ciphertext
