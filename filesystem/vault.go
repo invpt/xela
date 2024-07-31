@@ -8,6 +8,8 @@ import (
 	"fixpt.org/xela/core"
 )
 
+var _ core.Vault[ItemRef] = &Vault{}
+
 type Vault struct {
 	basePath string
 }
@@ -35,7 +37,7 @@ func (v *Vault) Root() ItemRef {
 	return ItemRef{path: "", kind: core.ItemKindDir}
 }
 
-func (v *Vault) ListItems(where ItemRef) ([]ItemRef, error) {
+func (v *Vault) List(where ItemRef) ([]ItemRef, error) {
 	if where.kind != core.ItemKindDir {
 		return nil, errors.New("xela/vault: cannot list items in non-dir item")
 	}
