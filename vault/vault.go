@@ -2,7 +2,6 @@ package vault
 
 import (
 	"encoding/json"
-	"errors"
 	"path/filepath"
 
 	"fixpt.org/xela/crypto"
@@ -110,17 +109,19 @@ func (db *VaultDatabase) OpenVault(vault VaultRef, password []byte) (*Vault, err
 	}, nil
 }
 
-func (v *Vault) ListItems(dirs ...ItemRef) ([]ItemRef, error) {
-	if len(dirs) > 1 {
-		return nil, errors.New("xela/vault: cannot list items in multiple dirs")
-	}
+func (v *Vault) Name() string {
+	return v.root.Name()
+}
 
-	whereInRepo := v.root
-	if len(dirs) != 0 {
-		whereInRepo = dirs[0].repoItemRef
+func (v *Vault) Root() ItemRef {
+	return ItemRef{
+		repoItemRef: v.root,
+		name:        v.root.Name(),
 	}
+}
 
-	repoItems, err := v.repos.ListItems(whereInRepo)
+func (v *Vault) ListItems(where ItemRef) ([]ItemRef, error) {
+	repoItems, err := v.repos.ListItems(where.repoItemRef)
 	if err != nil {
 		return nil, err
 	}
@@ -137,6 +138,20 @@ func (v *Vault) ListItems(dirs ...ItemRef) ([]ItemRef, error) {
 	return items, nil
 }
 
+func (v *Vault) Create(where ItemRef, name string, kind ItemKind) (ItemRef, error) {
+	encryptedName, err := v.enc.EncryptFilename(name)
+	if err != nil {
+		return ItemRef{}, err
+	}
+
+	repoItem, err := v.repos.Create(v.root, encryptedName, kind)
+	if err != nil {
+		return ItemRef{}, err
+	}
+
+	return v.decryptRepoItemRef(repoItem)
+}
+
 func (v *Vault) decryptRepoItemRef(repoItem repoItemRef) (ItemRef, error) {
 	_, encryptedName := filepath.Split(repoItem.path)
 
@@ -149,4 +164,26 @@ func (v *Vault) decryptRepoItemRef(repoItem repoItemRef) (ItemRef, error) {
 		repoItemRef: repoItem,
 		name:        decryptedName,
 	}, nil
+}
+
+func (v *Vault) Read(file ItemRef) ([]byte, error) {
+	ciphertext, err := v.repos.Read(file.repoItemRef)
+	if err != nil {
+		return nil, err
+	}
+
+	return v.dec.DecryptFile(nil, ciphertext)
+}
+
+func (v *Vault) Write(file ItemRef, data []byte) error {
+	ciphertext, err := v.enc.EncryptFile(nil, data)
+	if err != nil {
+		return err
+	}
+
+	return v.repos.Write(file.repoItemRef, ciphertext)
+}
+
+func (v *Vault) Delete(item ItemRef) error {
+	return v.repos.Delete(item.repoItemRef)
 }
