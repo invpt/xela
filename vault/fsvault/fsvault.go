@@ -29,6 +29,11 @@ func (r ItemRef) Kind() vault.ItemKind {
 
 var ErrNotExist error = os.ErrNotExist
 
+func Create(basePath string) *Vault {
+	os.MkdirAll(basePath, 0)
+	return Open(basePath)
+}
+
 func Open(basePath string) *Vault {
 	return &Vault{basePath: basePath}
 }

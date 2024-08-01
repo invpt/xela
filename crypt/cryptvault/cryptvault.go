@@ -21,6 +21,40 @@ type ItemRef[InnerRef vault.ItemRef] struct {
 	name  string
 }
 
+type cryptInfo struct {
+	Salt          crypt.Salt          `json:"salt"`
+	KDFParameters crypt.KDFParameters `json:"kdf_parameters"`
+}
+
+func Create[InnerRef vault.ItemRef](inner vault.Vault[InnerRef], password []byte) (*Vault[InnerRef], error) {
+	salt, err := crypt.GenerateSalt()
+	if err != nil {
+		return nil, err
+	}
+
+	kdfParameters := crypt.DefaultKDFParameters()
+
+	cryptJsonBytes, err := json.Marshal(cryptInfo{
+		Salt:          salt,
+		KDFParameters: kdfParameters,
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	cryptJsonRef, err := inner.Create(inner.Root(), "crypt.json", vault.ItemKindFile)
+	if err != nil {
+		return nil, err
+	}
+
+	err = inner.Write(cryptJsonRef, cryptJsonBytes)
+	if err != nil {
+		return nil, err
+	}
+
+	return open(inner, password, salt, kdfParameters)
+}
+
 func Open[InnerRef vault.ItemRef](inner vault.Vault[InnerRef], password []byte) (*Vault[InnerRef], error) {
 	cryptJsonRef, err := inner.Ref(inner.Root(), "crypt.json")
 	if err != nil {
@@ -32,13 +66,19 @@ func Open[InnerRef vault.ItemRef](inner vault.Vault[InnerRef], password []byte) 
 		return nil, err
 	}
 
-	var c struct {
-		Salt          crypt.Salt          `json:"salt"`
-		KDFParameters crypt.KDFParameters `json:"kdf_parameters"`
-	}
-	json.Unmarshal(cryptJsonBytes, &c)
+	var info cryptInfo
+	json.Unmarshal(cryptJsonBytes, &info)
 
-	key := crypt.DeriveKey(password, c.Salt, c.KDFParameters)
+	return open(inner, password, info.Salt, info.KDFParameters)
+}
+
+func open[InnerRef vault.ItemRef](
+	inner vault.Vault[InnerRef],
+	password []byte,
+	salt crypt.Salt,
+	kdfParameters crypt.KDFParameters,
+) (*Vault[InnerRef], error) {
+	key := crypt.DeriveKey(password, salt, kdfParameters)
 
 	enc, err := crypt.NewEncrypter(key)
 	if err != nil {
