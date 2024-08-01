@@ -33,6 +33,10 @@ func Open(basePath string) *Vault {
 	return &Vault{basePath: basePath}
 }
 
+func (v *Vault) BasePath() string {
+	return v.basePath
+}
+
 func (v *Vault) Root() ItemRef {
 	return ItemRef{path: "", kind: vault.ItemKindDir}
 }
