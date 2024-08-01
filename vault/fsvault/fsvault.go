@@ -8,9 +8,9 @@ import (
 	"fixpt.org/xela/vault"
 )
 
-var _ vault.Vault[ItemRef] = &Vault{}
+var _ vault.Vault[ItemRef] = &FSVault{}
 
-type Vault struct {
+type FSVault struct {
 	basePath string
 }
 
@@ -29,24 +29,24 @@ func (r ItemRef) Kind() vault.ItemKind {
 
 var ErrNotExist error = os.ErrNotExist
 
-func Create(basePath string) *Vault {
+func Create(basePath string) *FSVault {
 	os.MkdirAll(basePath, 0)
 	return Open(basePath)
 }
 
-func Open(basePath string) *Vault {
-	return &Vault{basePath: basePath}
+func Open(basePath string) *FSVault {
+	return &FSVault{basePath: basePath}
 }
 
-func (v *Vault) BasePath() string {
+func (v *FSVault) BasePath() string {
 	return v.basePath
 }
 
-func (v *Vault) Root() ItemRef {
+func (v *FSVault) Root() ItemRef {
 	return ItemRef{path: "", kind: vault.ItemKindDir}
 }
 
-func (v *Vault) List(where ItemRef) ([]ItemRef, error) {
+func (v *FSVault) List(where ItemRef) ([]ItemRef, error) {
 	if where.kind != vault.ItemKindDir {
 		return nil, errors.New("xela/vault: cannot list items in non-dir item")
 	}
@@ -70,7 +70,7 @@ func (v *Vault) List(where ItemRef) ([]ItemRef, error) {
 	return items, nil
 }
 
-func (v *Vault) Ref(where ItemRef, name string) (ItemRef, error) {
+func (v *FSVault) Ref(where ItemRef, name string) (ItemRef, error) {
 	if where.kind != vault.ItemKindDir {
 		return ItemRef{}, errors.New("xela/vault: cannot ref inside non-dir item")
 	}
@@ -94,7 +94,7 @@ func (v *Vault) Ref(where ItemRef, name string) (ItemRef, error) {
 	}, nil
 }
 
-func (v *Vault) Create(where ItemRef, name string, kind vault.ItemKind) (ItemRef, error) {
+func (v *FSVault) Create(where ItemRef, name string, kind vault.ItemKind) (ItemRef, error) {
 	if where.kind != vault.ItemKindDir {
 		return ItemRef{}, errors.New("xela/vault: cannot create inside non-dir item")
 	}
@@ -120,7 +120,7 @@ func (v *Vault) Create(where ItemRef, name string, kind vault.ItemKind) (ItemRef
 	}, nil
 }
 
-func (v *Vault) Read(file ItemRef) ([]byte, error) {
+func (v *FSVault) Read(file ItemRef) ([]byte, error) {
 	if file.kind != vault.ItemKindFile {
 		return nil, errors.New("xela/vault: cannot read from non-file item")
 	}
@@ -130,7 +130,7 @@ func (v *Vault) Read(file ItemRef) ([]byte, error) {
 	return os.ReadFile(fsPath)
 }
 
-func (v *Vault) Write(file ItemRef, data []byte) error {
+func (v *FSVault) Write(file ItemRef, data []byte) error {
 	if file.kind != vault.ItemKindFile {
 		return errors.New("xela/vault: cannot write to non-file item")
 	}
@@ -140,6 +140,6 @@ func (v *Vault) Write(file ItemRef, data []byte) error {
 	return os.WriteFile(fsPath, data, 0)
 }
 
-func (v *Vault) Delete(item ItemRef) error {
+func (v *FSVault) Delete(item ItemRef) error {
 	return os.RemoveAll(item.path)
 }

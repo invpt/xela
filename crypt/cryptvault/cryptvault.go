@@ -8,9 +8,9 @@ import (
 	"fixpt.org/xela/vault"
 )
 
-var _ vault.Vault[ItemRef[vault.UnitItemRef]] = &Vault[vault.UnitItemRef]{}
+var _ vault.Vault[ItemRef[vault.UnitItemRef]] = &CryptVault[vault.UnitItemRef]{}
 
-type Vault[InnerRef vault.ItemRef] struct {
+type CryptVault[InnerRef vault.ItemRef] struct {
 	inner vault.Vault[InnerRef]
 	enc   *crypt.Encrypter
 	dec   *crypt.Decrypter
@@ -26,7 +26,7 @@ type cryptInfo struct {
 	KDFParameters crypt.KDFParameters `json:"kdf_parameters"`
 }
 
-func Create[InnerRef vault.ItemRef](inner vault.Vault[InnerRef], password []byte) (*Vault[InnerRef], error) {
+func Create[InnerRef vault.ItemRef](inner vault.Vault[InnerRef], password []byte) (*CryptVault[InnerRef], error) {
 	salt, err := crypt.GenerateSalt()
 	if err != nil {
 		return nil, err
@@ -55,7 +55,7 @@ func Create[InnerRef vault.ItemRef](inner vault.Vault[InnerRef], password []byte
 	return open(inner, password, salt, kdfParameters)
 }
 
-func Open[InnerRef vault.ItemRef](inner vault.Vault[InnerRef], password []byte) (*Vault[InnerRef], error) {
+func Open[InnerRef vault.ItemRef](inner vault.Vault[InnerRef], password []byte) (*CryptVault[InnerRef], error) {
 	cryptJsonRef, err := inner.Ref(inner.Root(), "crypt.json")
 	if err != nil {
 		return nil, err
@@ -77,7 +77,7 @@ func open[InnerRef vault.ItemRef](
 	password []byte,
 	salt crypt.Salt,
 	kdfParameters crypt.KDFParameters,
-) (*Vault[InnerRef], error) {
+) (*CryptVault[InnerRef], error) {
 	key := crypt.DeriveKey(password, salt, kdfParameters)
 
 	enc, err := crypt.NewEncrypter(key)
@@ -90,21 +90,21 @@ func open[InnerRef vault.ItemRef](
 		return nil, err
 	}
 
-	return &Vault[InnerRef]{
+	return &CryptVault[InnerRef]{
 		inner: inner,
 		enc:   enc,
 		dec:   dec,
 	}, nil
 }
 
-func (v *Vault[InnerRef]) Root() ItemRef[InnerRef] {
+func (v *CryptVault[InnerRef]) Root() ItemRef[InnerRef] {
 	return ItemRef[InnerRef]{
 		inner: v.inner.Root(),
 		name:  "",
 	}
 }
 
-func (v *Vault[InnerRef]) List(where ItemRef[InnerRef]) ([]ItemRef[InnerRef], error) {
+func (v *CryptVault[InnerRef]) List(where ItemRef[InnerRef]) ([]ItemRef[InnerRef], error) {
 	repoItems, err := v.inner.List(where.inner)
 	if err != nil {
 		return nil, err
@@ -122,11 +122,11 @@ func (v *Vault[InnerRef]) List(where ItemRef[InnerRef]) ([]ItemRef[InnerRef], er
 	return items, nil
 }
 
-func (v *Vault[InnerRef]) Ref(where ItemRef[InnerRef], name string) (ItemRef[InnerRef], error) {
+func (v *CryptVault[InnerRef]) Ref(where ItemRef[InnerRef], name string) (ItemRef[InnerRef], error) {
 	return ItemRef[InnerRef]{}, errors.New("xela/crypto: TODO: implement Ref")
 }
 
-func (v *Vault[InnerRef]) Create(where ItemRef[InnerRef], name string, kind vault.ItemKind) (ItemRef[InnerRef], error) {
+func (v *CryptVault[InnerRef]) Create(where ItemRef[InnerRef], name string, kind vault.ItemKind) (ItemRef[InnerRef], error) {
 	encryptedName, err := v.enc.EncryptFilename(name)
 	if err != nil {
 		return ItemRef[InnerRef]{}, err
@@ -140,7 +140,7 @@ func (v *Vault[InnerRef]) Create(where ItemRef[InnerRef], name string, kind vaul
 	return v.decryptInnerRef(repoItem)
 }
 
-func (v *Vault[InnerRef]) decryptInnerRef(innerRef InnerRef) (ItemRef[InnerRef], error) {
+func (v *CryptVault[InnerRef]) decryptInnerRef(innerRef InnerRef) (ItemRef[InnerRef], error) {
 	Name := innerRef.Name()
 
 	decryptedName, err := v.dec.DecryptFilename(Name)
@@ -154,7 +154,7 @@ func (v *Vault[InnerRef]) decryptInnerRef(innerRef InnerRef) (ItemRef[InnerRef],
 	}, nil
 }
 
-func (v *Vault[InnerRef]) Read(file ItemRef[InnerRef]) ([]byte, error) {
+func (v *CryptVault[InnerRef]) Read(file ItemRef[InnerRef]) ([]byte, error) {
 	ciphertext, err := v.inner.Read(file.inner)
 	if err != nil {
 		return nil, err
@@ -163,7 +163,7 @@ func (v *Vault[InnerRef]) Read(file ItemRef[InnerRef]) ([]byte, error) {
 	return v.dec.DecryptFile(nil, ciphertext)
 }
 
-func (v *Vault[InnerRef]) Write(file ItemRef[InnerRef], data []byte) error {
+func (v *CryptVault[InnerRef]) Write(file ItemRef[InnerRef], data []byte) error {
 	ciphertext, err := v.enc.EncryptFile(nil, data)
 	if err != nil {
 		return err
@@ -172,6 +172,6 @@ func (v *Vault[InnerRef]) Write(file ItemRef[InnerRef], data []byte) error {
 	return v.inner.Write(file.inner, ciphertext)
 }
 
-func (v *Vault[InnerRef]) Delete(item ItemRef[InnerRef]) error {
+func (v *CryptVault[InnerRef]) Delete(item ItemRef[InnerRef]) error {
 	return v.inner.Delete(item.inner)
 }
