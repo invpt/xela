@@ -26,6 +26,14 @@ type cryptInfo struct {
 	KDFParameters crypt.KDFParameters `json:"kdf_parameters"`
 }
 
+func (i ItemRef[InnerRef]) Name() string {
+	return i.name
+}
+
+func (i ItemRef[InnerRef]) Kind() vault.ItemKind {
+	return i.inner.Kind()
+}
+
 func Create[InnerRef vault.ItemRef](inner vault.Vault[InnerRef], password []byte) (*CryptVault[InnerRef], error) {
 	salt, err := crypt.GenerateSalt()
 	if err != nil {

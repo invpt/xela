@@ -12,7 +12,7 @@ type ItemRef interface {
 	Kind() ItemKind
 }
 
-type Vault[Ref any] interface {
+type Vault[Ref ItemRef] interface {
 	Root() Ref
 	List(where Ref) ([]Ref, error)
 	Ref(where Ref, name string) (Ref, error)
