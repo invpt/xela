@@ -9,6 +9,8 @@ import (
 	"net"
 	"net/http"
 	"os"
+	"os/exec"
+	"path/filepath"
 	"runtime"
 	"sync/atomic"
 	"syscall"
@@ -55,7 +57,28 @@ func main() {
 		}
 	})()
 
-	w.Navigate(fmt.Sprint("http://", address))
+	initialPath := "/index.html"
+	if os.Getenv("XELA_DEV_MODE") == "1" {
+		initialPath = "/index.dev.html"
+
+		w.Bind("devReloadUi", func() {
+			fmt.Println("UI reload starting...")
+			cmd := exec.Command("make", "build-ui")
+			err := cmd.Start()
+			if err != nil {
+				panic(err)
+			}
+			err = cmd.Wait()
+			if err != nil {
+				panic(err)
+			}
+
+			w.Eval("window.location.reload()")
+			fmt.Println("UI reloaded.")
+		})
+	}
+
+	w.Navigate(fmt.Sprint("http://", address, initialPath))
 	if !state.CompareAndSwap(int32(runningStateReady), int32(runningStateRunning)) {
 		state.Store(int32(runningStateRunningDegraded))
 	}
@@ -118,8 +141,8 @@ func isErrorAddressAlreadyInUse(err error) bool {
 }
 
 func getRoot(w http.ResponseWriter, r *http.Request) {
-	fmt.Printf("got / request\n")
-	f, err := os.Open("ui/index.html")
+	fmt.Println(r.Method, r.URL.Path)
+	f, err := os.Open(filepath.Join("ui", r.URL.Path))
 	if err != nil {
 		panic(err)
 	}
