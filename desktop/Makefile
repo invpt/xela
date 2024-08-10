@@ -1,6 +1,6 @@
 build-ui:
 	$(MAKE) -C ../ui build
-	rm -r ./ui/
+	rm -rf ./ui/
 	cp -r ../ui/dist/ ./ui/
 
 run: build-ui
