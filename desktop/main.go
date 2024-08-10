@@ -28,7 +28,9 @@ const (
 )
 
 func main() {
-	w := webview.New(false)
+	devMode := os.Getenv("XELA_DEV_MODE") == "1"
+
+	w := webview.New(devMode)
 	defer w.Destroy()
 	w.SetTitle("Basic Example")
 	w.SetSize(480, 320, webview.HintNone)
@@ -58,7 +60,7 @@ func main() {
 	})()
 
 	initialPath := "/index.html"
-	if os.Getenv("XELA_DEV_MODE") == "1" {
+	if devMode {
 		initialPath = "/index.dev.html"
 
 		w.Bind("devReloadUi", func() {
