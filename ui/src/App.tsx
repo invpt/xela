@@ -1,7 +1,7 @@
-import { createSignal } from 'solid-js'
+import { createSignal } from "solid-js";
 
 function App() {
-  const [count, setCount] = createSignal(0)
+  const [count, setCount] = createSignal(0);
 
   return (
     <div class="flex justify-center items-center flex-col text-white min-h-screen">
@@ -13,7 +13,7 @@ function App() {
         </button>
       </div>
     </div>
-  )
+  );
 }
 
-export default App
+export default App;
